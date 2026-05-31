@@ -1,0 +1,5 @@
+# GitHub Pages configuration
+# Disabling Jekyll so GitHub Pages serves files directly (no processing)
+# This is required for files starting with _ and for plain HTML/CSS/JS projects
+
+plugins: []

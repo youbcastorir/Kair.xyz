@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0f1e"/>
+      <stop offset="100%" style="stop-color:#0d1428"/>
+    </linearGradient>
+    <linearGradient id="acc" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#00d4ff"/>
+      <stop offset="100%" style="stop-color:#0091ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1200" height="4" fill="url(#acc)"/>
+  <text x="600" y="220" font-size="120" text-anchor="middle" fill="#00d4ff">⚡</text>
+  <text x="600" y="340" font-family="Arial,sans-serif" font-size="72" font-weight="bold" text-anchor="middle" fill="white">SpeedCheck Pro</text>
+  <text x="600" y="410" font-family="Arial,sans-serif" font-size="32" text-anchor="middle" fill="#8b95a8">Free Internet Speed Test · Download · Upload · Ping · Jitter</text>
+  <text x="600" y="570" font-family="Arial,sans-serif" font-size="24" text-anchor="middle" fill="#5a6478">salatrir@gmail.com</text>
+</svg>

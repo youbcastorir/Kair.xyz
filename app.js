@@ -430,10 +430,10 @@ const USE_CASES = [
       return 'poor';
     },
     desc: {
-      excellent: `A 10 GB file downloads in ~${Math.round(10*8*1024/r.download)} seconds.`,
-      good:      `A 10 GB file downloads in ~${Math.round(10*8*1024/r.download)} seconds.`,
-      fair:      `A 10 GB file downloads in ~${Math.round(10*8*1024/r.download)} seconds.`,
-      poor:      'Large downloads will take a long time.',
+      excellent: r => `A 10 GB file downloads in ~${Math.round(10*8*1024/r.download)} seconds.`,
+      good:      r => `A 10 GB file downloads in ~${Math.round(10*8*1024/r.download)} seconds.`,
+      fair:      r => `A 10 GB file downloads in ~${Math.round(10*8*1024/r.download)} seconds.`,
+      poor:      () => 'Large downloads will take a long time.',
     },
   },
   {
@@ -465,7 +465,8 @@ function showAnalysis(r) {
 
   USE_CASES.forEach(uc => {
     const status = uc.check(r);
-    const desc   = typeof uc.desc[status] === 'function' ? uc.desc[status](r) : uc.desc[status];
+    const descVal = uc.desc[status];
+    const desc = typeof descVal === 'function' ? descVal(r) : descVal;
     const statusLabel = { excellent: 'Excellent', good: 'Good', fair: 'Fair', poor: 'Poor' }[status];
     const card = document.createElement('div');
     card.className = 'analysis-card';

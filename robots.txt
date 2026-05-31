@@ -1,9 +1,10 @@
 User-agent: *
 Allow: /
 
-# Sitemap location
-Sitemap: https://yourusername.github.io/speedcheck-pro/sitemap.xml
-
-# Disallow any potential cache or temp directories
+# Block dev/build artifacts
 Disallow: /node_modules/
 Disallow: /.git/
+Disallow: /.github/
+
+# Sitemap
+Sitemap: https://yourusername.github.io/speedcheck-pro/sitemap.xml
