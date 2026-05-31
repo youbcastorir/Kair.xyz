@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="SpeedCheck Pro — Test your internet download speed, upload speed, ping and jitter instantly. Free, accurate, no installs required." />
+  <meta name="keywords" content="internet speed test, download speed, upload speed, ping test, jitter, broadband test" />
+  <meta name="author" content="SpeedCheck Pro" />
+  <meta name="robots" content="index, follow" />
+  <title>SpeedCheck Pro — Internet Speed Test</title>
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="SpeedCheck Pro — Internet Speed Test" />
+  <meta property="og:description" content="Test your internet speed instantly. Get accurate download, upload, ping and jitter results in seconds." />
+  <meta property="og:url" content="https://yourusername.github.io/speedcheck-pro/" />
+  <meta property="og:image" content="https://yourusername.github.io/speedcheck-pro/og-image.png" />
+  <meta property="og:site_name" content="SpeedCheck Pro" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="SpeedCheck Pro — Internet Speed Test" />
+  <meta name="twitter:description" content="Test your internet speed instantly. Free, accurate, no installs." />
+  <meta name="twitter:image" content="https://yourusername.github.io/speedcheck-pro/og-image.png" />
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0a0f1e" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="SpeedCheck Pro" />
+
+  <!-- Schema.org -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "SpeedCheck Pro",
+    "applicationCategory": "UtilitiesApplication",
+    "operatingSystem": "Web",
+    "description": "Free internet speed test measuring download, upload, ping and jitter.",
+    "url": "https://yourusername.github.io/speedcheck-pro/",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "author": { "@type": "Organization", "name": "SpeedCheck Pro", "email": "salatrir@gmail.com" }
+  }
+  </script>
+
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;600&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav class="navbar" role="navigation" aria-label="Main navigation">
+    <div class="nav-inner">
+      <a href="#" class="nav-logo" aria-label="SpeedCheck Pro Home">
+        <span class="logo-icon" aria-hidden="true">⚡</span>
+        <span class="logo-text">SpeedCheck <em>Pro</em></span>
+      </a>
+      <div class="nav-actions">
+        <button class="btn-theme" id="themeToggle" aria-label="Toggle dark/light mode" title="Toggle theme">
+          <span class="theme-icon" id="themeIcon">☀️</span>
+        </button>
+        <a href="#history" class="btn-nav">History</a>
+        <a href="#analysis" class="btn-nav">Analysis</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO / SPEED TEST -->
+  <main>
+    <section class="hero" id="speedtest" aria-label="Speed Test">
+      <div class="hero-bg" aria-hidden="true">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+        <div class="grid-lines"></div>
+      </div>
+
+      <div class="hero-content">
+        <h1 class="hero-title">
+          <span class="title-line">How fast is</span>
+          <span class="title-accent">your internet?</span>
+        </h1>
+        <p class="hero-subtitle">Measure download, upload, ping & jitter in seconds</p>
+
+        <!-- Gauge -->
+        <div class="gauge-wrapper" role="img" aria-label="Speed gauge">
+          <div class="gauge-container" id="gaugeContainer">
+            <svg class="gauge-svg" viewBox="0 0 300 200" aria-hidden="true">
+              <!-- Background arc -->
+              <path class="gauge-bg" d="M 30 170 A 120 120 0 0 1 270 170" fill="none" stroke-width="14" stroke-linecap="round"/>
+              <!-- Colored arc -->
+              <path class="gauge-fill" id="gaugeFill" d="M 30 170 A 120 120 0 0 1 270 170" fill="none" stroke-width="14" stroke-linecap="round" stroke-dasharray="376" stroke-dashoffset="376"/>
+              <!-- Tick marks -->
+              <g class="gauge-ticks" id="gaugeTicks"></g>
+              <!-- Needle -->
+              <g id="gaugeNeedle" transform="rotate(-90, 150, 170)">
+                <line x1="150" y1="170" x2="150" y2="62" stroke="white" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+                <circle cx="150" cy="170" r="7" fill="white" opacity="0.9"/>
+                <circle cx="150" cy="170" r="3" fill="#0a0f1e"/>
+              </g>
+            </svg>
+
+            <!-- Center display -->
+            <div class="gauge-center">
+              <div class="speed-value" id="speedValue">0</div>
+              <div class="speed-unit" id="speedUnit">Mbps</div>
+              <div class="speed-label" id="speedLabel">Ready</div>
+            </div>
+
+            <!-- Scale labels -->
+            <div class="gauge-scale" aria-hidden="true">
+              <span>0</span><span>50</span><span>100</span><span>200</span><span>500</span><span>1000</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mini stats bar -->
+        <div class="mini-stats" id="miniStats">
+          <div class="mini-stat" id="miniPing">
+            <span class="mini-label">Ping</span>
+            <span class="mini-val" id="pingVal">—</span>
+            <span class="mini-unit">ms</span>
+          </div>
+          <div class="mini-divider" aria-hidden="true"></div>
+          <div class="mini-stat" id="miniJitter">
+            <span class="mini-label">Jitter</span>
+            <span class="mini-val" id="jitterVal">—</span>
+            <span class="mini-unit">ms</span>
+          </div>
+          <div class="mini-divider" aria-hidden="true"></div>
+          <div class="mini-stat" id="miniDownload">
+            <span class="mini-label">Download</span>
+            <span class="mini-val" id="downloadVal">—</span>
+            <span class="mini-unit">Mbps</span>
+          </div>
+          <div class="mini-divider" aria-hidden="true"></div>
+          <div class="mini-stat" id="miniUpload">
+            <span class="mini-label">Upload</span>
+            <span class="mini-val" id="uploadVal">—</span>
+            <span class="mini-unit">Mbps</span>
+          </div>
+        </div>
+
+        <!-- Phase indicator -->
+        <div class="phase-indicator" id="phaseIndicator" aria-live="polite">
+          <div class="phase-step" id="phase-ping" data-phase="ping">
+            <span class="phase-dot"></span>
+            <span class="phase-name">Ping</span>
+          </div>
+          <div class="phase-line" aria-hidden="true"></div>
+          <div class="phase-step" id="phase-download" data-phase="download">
+            <span class="phase-dot"></span>
+            <span class="phase-name">Download</span>
+          </div>
+          <div class="phase-line" aria-hidden="true"></div>
+          <div class="phase-step" id="phase-upload" data-phase="upload">
+            <span class="phase-dot"></span>
+            <span class="phase-name">Upload</span>
+          </div>
+        </div>
+
+        <!-- Start/Stop Button -->
+        <button class="btn-start" id="startBtn" aria-label="Start speed test">
+          <span class="btn-start-inner">
+            <span class="btn-start-ripple" aria-hidden="true"></span>
+            <span class="btn-start-text" id="startBtnText">GO</span>
+          </span>
+        </button>
+
+        <p class="server-info" id="serverInfo">Click GO to begin your speed test</p>
+      </div>
+    </section>
+
+    <!-- RESULTS DASHBOARD -->
+    <section class="section results-section" id="results" aria-label="Test Results" style="display:none">
+      <div class="container">
+        <h2 class="section-title">Test Results</h2>
+
+        <div class="results-grid">
+          <div class="result-card card-download" role="article">
+            <div class="result-icon" aria-hidden="true">↓</div>
+            <div class="result-body">
+              <div class="result-label">Download</div>
+              <div class="result-value" id="res-download">—</div>
+              <div class="result-unit">Mbps</div>
+            </div>
+            <div class="result-bar-wrap"><div class="result-bar" id="bar-download"></div></div>
+          </div>
+
+          <div class="result-card card-upload" role="article">
+            <div class="result-icon" aria-hidden="true">↑</div>
+            <div class="result-body">
+              <div class="result-label">Upload</div>
+              <div class="result-value" id="res-upload">—</div>
+              <div class="result-unit">Mbps</div>
+            </div>
+            <div class="result-bar-wrap"><div class="result-bar" id="bar-upload"></div></div>
+          </div>
+
+          <div class="result-card card-ping" role="article">
+            <div class="result-icon" aria-hidden="true">◉</div>
+            <div class="result-body">
+              <div class="result-label">Ping</div>
+              <div class="result-value" id="res-ping">—</div>
+              <div class="result-unit">ms</div>
+            </div>
+            <div class="result-bar-wrap"><div class="result-bar" id="bar-ping"></div></div>
+          </div>
+
+          <div class="result-card card-jitter" role="article">
+            <div class="result-icon" aria-hidden="true">∿</div>
+            <div class="result-body">
+              <div class="result-label">Jitter</div>
+              <div class="result-value" id="res-jitter">—</div>
+              <div class="result-unit">ms</div>
+            </div>
+            <div class="result-bar-wrap"><div class="result-bar" id="bar-jitter"></div></div>
+          </div>
+        </div>
+
+        <!-- Quality rating -->
+        <div class="quality-banner" id="qualityBanner" role="status" aria-live="polite">
+          <div class="quality-icon" id="qualityIcon" aria-hidden="true">🌐</div>
+          <div class="quality-body">
+            <div class="quality-title" id="qualityTitle">Excellent Connection</div>
+            <div class="quality-desc" id="qualityDesc">Your connection is performing great across all metrics.</div>
+          </div>
+          <div class="quality-badge" id="qualityBadge">A+</div>
+        </div>
+
+        <!-- Best / Avg -->
+        <div class="stats-row">
+          <div class="stat-box">
+            <div class="stat-label">Best Download</div>
+            <div class="stat-value" id="bestDownload">—</div>
+            <div class="stat-unit">Mbps</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Avg Download</div>
+            <div class="stat-value" id="avgDownload">—</div>
+            <div class="stat-unit">Mbps</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Best Ping</div>
+            <div class="stat-value" id="bestPing">—</div>
+            <div class="stat-unit">ms</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Tests Run</div>
+            <div class="stat-value" id="testsRun">0</div>
+            <div class="stat-unit">total</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONNECTION ANALYSIS -->
+    <section class="section analysis-section" id="analysis" aria-label="Connection Analysis" style="display:none">
+      <div class="container">
+        <h2 class="section-title">Connection Analysis</h2>
+        <p class="section-subtitle">How your connection performs for common use cases</p>
+
+        <div class="analysis-grid" id="analysisGrid">
+          <!-- Cards injected by JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- SPEED HISTORY -->
+    <section class="section history-section" id="history" aria-label="Test History">
+      <div class="container">
+        <div class="section-header">
+          <h2 class="section-title">Speed History</h2>
+          <div class="history-actions">
+            <button class="btn-outline" id="exportBtn" aria-label="Export history as CSV">Export CSV</button>
+            <button class="btn-outline btn-danger" id="clearBtn" aria-label="Clear all history">Clear All</button>
+          </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="chart-wrapper" id="chartWrapper" style="display:none" aria-label="Speed history chart">
+          <canvas id="speedChart" role="img" aria-label="Line chart of historical download and upload speeds"></canvas>
+        </div>
+
+        <div class="history-empty" id="historyEmpty">
+          <div class="empty-icon" aria-hidden="true">📊</div>
+          <p>No tests yet. Run your first speed test to see your history here.</p>
+        </div>
+
+        <div class="history-table-wrap" id="historyTableWrap" style="display:none">
+          <table class="history-table" role="table" aria-label="Speed test history">
+            <thead>
+              <tr>
+                <th scope="col">Date & Time</th>
+                <th scope="col">↓ Download</th>
+                <th scope="col">↑ Upload</th>
+                <th scope="col">Ping</th>
+                <th scope="col">Jitter</th>
+                <th scope="col">Grade</th>
+                <th scope="col"><span class="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody id="historyBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="footer" role="contentinfo">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <div class="footer-logo">⚡ SpeedCheck <em>Pro</em></div>
+          <p class="footer-desc">Free, accurate internet speed testing. No sign-up required.</p>
+        </div>
+        <div class="footer-links">
+          <h3>Quick Links</h3>
+          <ul>
+            <li><a href="#speedtest">Speed Test</a></li>
+            <li><a href="#history">History</a></li>
+            <li><a href="#analysis">Analysis</a></li>
+          </ul>
+        </div>
+        <div class="footer-contact">
+          <h3>Contact & Support</h3>
+          <p>Questions, feedback, or issues?</p>
+          <a href="mailto:salatrir@gmail.com" class="footer-email">salatrir@gmail.com</a>
+          <p class="footer-note">Open source · GitHub Pages hosted</p>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>© 2026 SpeedCheck Pro. Built with ❤️ for the open web.</p>
+        <p class="footer-legal">Speed results are simulated estimates for demonstration purposes.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
