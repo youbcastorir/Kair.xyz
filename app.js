@@ -74,16 +74,16 @@
           // Determine current stage from label
           if (stageName.toLowerCase().includes('ping')) {
             setStage('ping');
-            UI.speedUnit.textContent = 'ms';
-            UI.speedLabel.textContent = 'PING';
+            document.getElementById('speedUnit').textContent = 'ms';
+            document.getElementById('speedLabel').textContent = 'PING';
           } else if (stageName.toLowerCase().includes('download')) {
             setStage('download');
-            UI.speedUnit.textContent = 'Mbps';
-            UI.speedLabel.textContent = 'DOWNLOAD';
+            document.getElementById('speedUnit').textContent = 'Mbps';
+            document.getElementById('speedLabel').textContent = 'DOWNLOAD';
           } else if (stageName.toLowerCase().includes('upload')) {
             setStage('upload');
-            UI.speedUnit.textContent = 'Mbps';
-            UI.speedLabel.textContent = 'UPLOAD';
+            document.getElementById('speedUnit').textContent = 'Mbps';
+            document.getElementById('speedLabel').textContent = 'UPLOAD';
           } else if (stageName.toLowerCase().includes('finaliz') || stageName.toLowerCase().includes('complete')) {
             setStage(null);
           }
@@ -137,6 +137,11 @@
           UI.setButtonState('done');
           UI.setTesting(false);
           isRunning = false;
+          // Show method note if local calibration was used
+          if (results.method && results.method !== 'network') {
+            const s = document.getElementById('progressStage');
+            if (s) { s.textContent = 'ⓘ Calibrated estimate — see How it works'; s.style.display='block'; }
+          }
 
           // Scroll to results on mobile
           if (window.innerWidth < 768) {
