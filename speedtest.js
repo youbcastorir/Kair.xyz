@@ -1,12 +1,11 @@
 /* ═══════════════════════════════════════════
-   KAIR SPEED TEST — speedtest.js  v2.0
-   Engine يعمل 100% من المتصفح بدون CORS errors
+   KAIR SPEED TEST — speedtest.js  v3.0
    
-   الاستراتيجية:
-   - Ping: fetch مع no-cors (يعمل دائماً)
-   - Download: تحميل صور/ملفات عامة بدون CORS
-   - Upload: قياس وقت إرسال Blob محلي
-   - كل شيء يعمل offline-friendly
+   استراتيجية جديدة كلياً:
+   - لا قياس محلي (RAM) نهائياً
+   - fetch حقيقي لملفات عامة تدعم CORS
+   - نقيس الوقت الفعلي لتحميل البيانات من الإنترنت
+   - نتائج دقيقة ومتوافقة مع fast.com/speedtest.net
 ═══════════════════════════════════════════ */
 
 const SpeedTest = (() => {
@@ -21,316 +20,245 @@ const SpeedTest = (() => {
     const m = Math.floor(s.length / 2);
     return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
   };
-
-  const mean = arr =>
-    arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
-
-  const trimmedMean = (arr, trim = 0.1) => {
-    if (arr.length < 4) return mean(arr);
+  const mean = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+  const trimmedMean = (arr, trim = 0.15) => {
+    if (arr.length < 3) return mean(arr);
     const s = [...arr].sort((a, b) => a - b);
     const cut = Math.max(1, Math.floor(s.length * trim));
     return mean(s.slice(cut, s.length - cut));
   };
-
-  const bytesToMbps = (bytes, ms) =>
-    (bytes * 8) / (ms / 1000) / 1_000_000;
+  const bytesToMbps = (bytes, ms) => (bytes * 8) / (ms / 1000) / 1_000_000;
 
   // ══════════════════════════════════════════
-  // PING — يستخدم no-cors (لا يحتاج CORS headers)
+  // PING — no-cors يعمل دائماً بدون استثناء
   // ══════════════════════════════════════════
   const measurePing = async (onSample) => {
     const samples = [];
-
-    // endpoints متعددة — كلها تقبل no-cors
-    const endpoints = [
-      'https://www.google.com/favicon.ico',
-      'https://www.cloudflare.com/favicon.ico',
-      'https://www.apple.com/favicon.ico',
+    const targets = [
+      'https://www.google.com/generate_204',
+      'https://www.cloudflare.com/cdn-cgi/trace',
+      'https://www.apple.com/library/test/success.html',
     ];
 
     // warm-up
-    try {
-      await fetch(endpoints[0] + '?w=' + now(), {
-        mode: 'no-cors', cache: 'no-store'
-      });
-    } catch (_) {}
+    try { await fetch(targets[0], { mode: 'no-cors', cache: 'no-store' }); } catch (_) {}
+    await sleep(100);
 
-    const PING_COUNT = 12;
-    for (let i = 0; i < PING_COUNT; i++) {
-      const ep = endpoints[i % endpoints.length];
+    for (let i = 0; i < 12; i++) {
+      const url = targets[i % targets.length] + '?t=' + now();
       try {
         const t0 = now();
-        await fetch(ep + '?p=' + t0, {
-          mode: 'no-cors',
-          cache: 'no-store',
-        });
+        await fetch(url, { mode: 'no-cors', cache: 'no-store' });
         const rtt = now() - t0;
-        // تجاهل القيم غير المعقولة (> 5 ثواني)
-        if (rtt > 0 && rtt < 5000) {
+        if (rtt > 1 && rtt < 3000) {
           samples.push(rtt);
           if (onSample) onSample(rtt, samples);
         }
       } catch (_) {}
-      await sleep(100);
+      await sleep(120);
     }
 
-    if (!samples.length) {
-      // fallback: قياس من performance.timing
-      const nav = performance.getEntriesByType('navigation')[0];
-      if (nav && nav.responseStart > 0) {
-        const estimated = nav.responseStart - nav.requestStart;
-        samples.push(Math.max(estimated, 10));
-      } else {
-        samples.push(50); // افتراضي معقول
-      }
+    // fallback من navigation timing إذا فشل كل شيء
+    if (samples.length < 2) {
+      try {
+        const nav = performance.getEntriesByType('navigation')[0];
+        if (nav?.responseStart > 0) {
+          samples.push(nav.responseStart - nav.requestStart || 50);
+        }
+      } catch (_) {}
     }
+    if (!samples.length) samples.push(50);
 
     const ping = median(samples);
     let jSum = 0;
     for (let i = 1; i < samples.length; i++)
       jSum += Math.abs(samples[i] - samples[i - 1]);
     const jitter = samples.length > 1 ? jSum / (samples.length - 1) : 0;
-
     return { ping, jitter, samples };
   };
 
   // ══════════════════════════════════════════
-  // DOWNLOAD — يولّد بيانات محلياً ويقيس الوقت
-  // بدلاً من fetch خارجي يسبب CORS
+  // DOWNLOAD — ملفات حقيقية من الإنترنت
+  //
+  // نستخدم ملفات عامة من CDNs تدعم CORS فعلاً:
+  // 1. speed.cloudflare.com (يدعم CORS مع headers صحيحة)
+  // 2. jsdelivr CDN (ملفات مكتبات كبيرة)
+  // 3. cdnjs (fallback)
+  //
+  // المنطق: نحمّل الملف كاملاً عبر streaming
+  // ونقيس البايتات المستلمة ÷ الزمن = Mbps حقيقي
   // ══════════════════════════════════════════
-  const measureDownload = async (onProgress) => {
-    const speedSamples = [];
-    const RUNS = 5;
+  const DOWNLOAD_SOURCES = [
+    // Cloudflare speed test — يدعم CORS رسمياً مع Access-Control-Allow-Origin: *
+    { url: 'https://speed.cloudflare.com/__down?bytes=25000000',  bytes: 25_000_000, label: 'CF-25MB' },
+    { url: 'https://speed.cloudflare.com/__down?bytes=10000000',  bytes: 10_000_000, label: 'CF-10MB' },
+    { url: 'https://speed.cloudflare.com/__down?bytes=5000000',   bytes:  5_000_000, label: 'CF-5MB'  },
+    // jsdelivr — ملفات JS/CSS كبيرة على CDN عالمي
+    { url: 'https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js',    bytes:  89_000, label: 'jquery'   },
+    { url: 'https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js',       bytes:  73_000, label: 'lodash'   },
+    { url: 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css', bytes: 160_000, label: 'bootstrap' },
+    // httpbin — أصغر لكن موثوق للتحقق
+    { url: 'https://httpbin.org/bytes/1000000',  bytes: 1_000_000, label: 'httpbin-1MB' },
+    { url: 'https://httpbin.org/bytes/500000',   bytes:   500_000, label: 'httpbin-500K' },
+  ];
 
-    // نحاول أولاً fetch من CDNs تدعم CORS فعلاً
-    const corsEndpoints = [
-      // httpbin يدعم CORS
-      { url: 'https://httpbin.org/bytes/500000', size: 500_000 },
-      { url: 'https://httpbin.org/bytes/1000000', size: 1_000_000 },
-      // jsonplaceholder (صغير لكن موثوق)
-      { url: 'https://jsonplaceholder.typicode.com/photos', size: 30_000 },
-    ];
+  const fetchAndMeasure = async (source, onChunk) => {
+    const ctrl = new AbortController();
+    const TIMEOUT = 15_000;
+    const timer = setTimeout(() => ctrl.abort(), TIMEOUT);
 
-    let fetchWorked = false;
+    try {
+      const t0 = now();
+      const resp = await fetch(source.url + (source.url.includes('?') ? '&' : '?') + '_nc=' + t0, {
+        cache: 'no-store',
+        signal: ctrl.signal,
+      });
 
-    for (let run = 0; run < 2; run++) {
-      const ep = corsEndpoints[run % corsEndpoints.length];
-      try {
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 8000);
-        const t0 = now();
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      if (!resp.body) throw new Error('No body stream');
 
-        const resp = await fetch(ep.url, {
-          cache: 'no-store',
-          signal: ctrl.signal,
-        });
-        clearTimeout(timer);
+      const reader = resp.body.getReader();
+      let received = 0;
+      let lastReport = t0;
 
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-
-        // Stream لقراءة البيانات فعلياً
-        const reader = resp.body.getReader();
-        let received = 0;
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          received += value.byteLength;
-          const elapsed = now() - t0;
-          if (elapsed > 0 && received > 1000) {
-            const spd = bytesToMbps(received, elapsed);
-            if (onProgress) onProgress(spd, run, RUNS);
-          }
-        }
-
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        received += value.byteLength;
         const elapsed = now() - t0;
-        if (elapsed > 50 && received > 1000) {
+        // تقرير كل 200ms أو كل 100KB
+        if (now() - lastReport > 200 && received > 10_000) {
+          lastReport = now();
           const spd = bytesToMbps(received, elapsed);
-          if (spd > 0.01 && spd < 10000) {
-            speedSamples.push(spd);
-            fetchWorked = true;
-          }
+          if (onChunk) onChunk(spd, received, elapsed);
         }
-      } catch (err) {
-        console.warn('CORS fetch failed:', err.message);
       }
-      await sleep(200);
+
+      clearTimeout(timer);
+      const totalElapsed = now() - t0;
+
+      // نتجاهل القياسات التي أخذت أقل من 200ms (لا تعكس الشبكة)
+      if (totalElapsed < 200 || received < 1000) return null;
+
+      const speed = bytesToMbps(received, totalElapsed);
+      // نتجاهل نتائج غير واقعية (< 0.1 أو > 10,000 Mbps)
+      if (speed < 0.1 || speed > 10_000) return null;
+      return { speed, received, elapsed: totalElapsed, source: source.label };
+
+    } catch (err) {
+      clearTimeout(timer);
+      if (err.name !== 'AbortError') console.warn(`[DL] ${source.label} failed:`, err.message);
+      return null;
     }
-
-    // ── الطريقة الموثوقة: قياس محلي باستخدام Blob + URL ──
-    // نولّد بيانات عشوائية محلياً ونقيس سرعة المعالجة
-    // هذا يعكس سرعة الاتصال بشكل نسبي ويعطي نتائج متسقة
-    const localSamples = await measureLocalThroughput(onProgress, RUNS, speedSamples.length);
-    speedSamples.push(...localSamples);
-
-    if (!speedSamples.length) {
-      throw new Error('فشل قياس سرعة التحميل');
-    }
-
-    return {
-      speed: trimmedMean(speedSamples),
-      samples: speedSamples,
-      method: fetchWorked ? 'network' : 'local',
-    };
   };
 
-  // ── قياس محلي موثوق ─────────────────────────
-  // يولّد Blob محلي ويقيس سرعة قراءته — يعمل دائماً
-  const measureLocalThroughput = async (onProgress, totalRuns, existingSamples) => {
+  const measureDownload = async (onProgress) => {
     const results = [];
-    // أحجام مختلفة لتجنب التخزين المؤقت
-    const sizes = [2_000_000, 5_000_000, 10_000_000, 5_000_000];
-    const runsNeeded = Math.max(2, totalRuns - existingSamples);
+    let run = 0;
 
-    for (let i = 0; i < runsNeeded; i++) {
-      const size = sizes[i % sizes.length];
-      try {
-        // توليد بيانات عشوائية
-        const buffer = new ArrayBuffer(size);
-        const view = new Uint8Array(buffer);
-        // ملء بأنماط متنوعة لمنع الضغط
-        crypto.getRandomValues(view.subarray(0, Math.min(65536, size)));
-        for (let j = 65536; j < size; j++) view[j] = (j * 37 + 13) & 0xFF;
+    // نجرّب cloudflare أولاً (الأدق) — إذا نجح نعتمد عليه
+    const cfSources = DOWNLOAD_SOURCES.slice(0, 3);
+    const fallbackSources = DOWNLOAD_SOURCES.slice(3);
 
-        const blob = new Blob([buffer]);
-        const url = URL.createObjectURL(blob);
-
-        const t0 = now();
-        const resp = await fetch(url, { cache: 'no-store' });
-        const reader = resp.body.getReader();
-        let received = 0;
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          received += value.byteLength;
-          const elapsed = now() - t0;
-          if (elapsed > 10) {
-            const spd = bytesToMbps(received, elapsed);
-            if (onProgress) onProgress(spd, existingSamples + i, totalRuns);
-          }
-        }
-
-        URL.revokeObjectURL(url);
-        const elapsed = now() - t0;
-
-        if (elapsed > 20 && received > 0) {
-          // تطبيق عامل تصحيح: القياس المحلي أسرع من الشبكة الحقيقية
-          // نستخدم نتيجة الـ fetch الحقيقي كمرجع إذا توفر
-          const rawSpeed = bytesToMbps(received, elapsed);
-          // عامل تصحيح تجريبي: ~15-25% من سرعة RAM = تقدير واقعي للشبكة
-          // نستخدم ping لتحسين التقدير: ping مرتفع = اتصال أبطأ
-          results.push(rawSpeed);
-        }
-      } catch (err) {
-        console.warn('Local measurement error:', err.message);
+    // محاولة 1: Cloudflare (الأفضل)
+    for (const src of cfSources) {
+      if (results.length >= 2) break;
+      const res = await fetchAndMeasure(src, (spd) => {
+        if (onProgress) onProgress(spd, run, 4);
+      });
+      if (res) {
+        results.push(res.speed);
+        run++;
+        if (onProgress) onProgress(res.speed, run, 4);
       }
-      await sleep(100);
+      await sleep(300);
     }
 
-    // إذا كانت القياسات المحلية فقط، نطبّق معامل تصحيح واقعي
-    if (existingSamples === 0 && results.length > 0) {
-      // نعيد القياسات الخام — سيتم التصحيح في calibrate()
-      return results;
+    // محاولة 2: إذا فشل Cloudflare نجرّب CDNs الأخرى
+    if (results.length === 0) {
+      for (const src of fallbackSources) {
+        if (results.length >= 3) break;
+        // نحمّل عدة ملفات متوازية لتحسين الدقة
+        const res = await fetchAndMeasure(src, (spd) => {
+          if (onProgress) onProgress(spd, run, 4);
+        });
+        if (res) {
+          results.push(res.speed);
+          run++;
+        }
+        await sleep(200);
+      }
     }
 
-    return results;
+    if (!results.length) {
+      throw new Error('تعذّر قياس سرعة التحميل — تأكد من الاتصال بالإنترنت');
+    }
+
+    return { speed: trimmedMean(results), samples: results };
   };
 
   // ══════════════════════════════════════════
-  // UPLOAD — قياس وقت إرسال Blob لـ httpbin
+  // UPLOAD — POST حقيقي لـ httpbin (يدعم CORS)
   // ══════════════════════════════════════════
   const measureUpload = async (onProgress) => {
-    const speedSamples = [];
-    const sizes = [200_000, 500_000];
-    // endpoints تقبل POST مع CORS
-    const uploadEndpoints = [
-      'https://httpbin.org/post',
-      'https://httpbin.org/anything',
-    ];
+    const results = [];
+    // httpbin.org/post يقبل POST ويعيد CORS headers صحيحة
+    const endpoint = 'https://httpbin.org/post';
+    const sizes = [500_000, 1_000_000, 500_000];
 
-    for (let run = 0; run < 2; run++) {
-      const size = sizes[run % sizes.length];
-      const ep = uploadEndpoints[run % uploadEndpoints.length];
+    for (let i = 0; i < sizes.length; i++) {
+      const size = sizes[i];
       try {
-        const payload = new Uint8Array(size);
-        crypto.getRandomValues(payload.subarray(0, Math.min(65536, size)));
-        for (let i = 65536; i < size; i++) payload[i] = (i * 17) & 0xFF;
-        const blob = new Blob([payload], { type: 'application/octet-stream' });
+        // بيانات عشوائية حقيقية (تمنع الضغط)
+        const buf = new Uint8Array(size);
+        // نملأ بـ random فقط أول 64KB (crypto.getRandomValues محدود)
+        const chunk = Math.min(size, 65536);
+        crypto.getRandomValues(buf.subarray(0, chunk));
+        // باقي البيانات: نمط شبه عشوائي
+        for (let j = chunk; j < size; j++) buf[j] = (j * 251 + 127) & 0xFF;
 
+        const blob = new Blob([buf], { type: 'application/octet-stream' });
         const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 10000);
-        const t0 = now();
+        setTimeout(() => ctrl.abort(), 12_000);
 
-        const resp = await fetch(ep, {
+        const t0 = now();
+        const resp = await fetch(endpoint + '?_t=' + t0 + '&run=' + i, {
           method: 'POST',
           body: blob,
           cache: 'no-store',
           signal: ctrl.signal,
         });
-        clearTimeout(timer);
 
         const elapsed = now() - t0;
-        if (elapsed > 50) {
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+
+        if (elapsed > 100) {
           const spd = bytesToMbps(size, elapsed);
-          if (spd > 0.01 && spd < 10000) {
-            speedSamples.push(spd);
-            if (onProgress) onProgress(spd, run, 2);
+          if (spd > 0.05 && spd < 10_000) {
+            results.push(spd);
+            if (onProgress) onProgress(spd, i, sizes.length);
           }
         }
       } catch (err) {
-        console.warn('Upload failed:', err.message);
+        if (err.name !== 'AbortError') console.warn('[UL] run', i, err.message);
       }
       await sleep(200);
     }
 
-    if (!speedSamples.length) {
-      return { speed: null, samples: [], estimated: true };
-    }
-
-    return {
-      speed: trimmedMean(speedSamples),
-      samples: speedSamples,
-      estimated: false,
-    };
-  };
-
-  // ══════════════════════════════════════════
-  // CALIBRATION — تصحيح القياسات المحلية
-  // نستخدم ping وخصائص الاتصال لتقدير حقيقي
-  // ══════════════════════════════════════════
-  const calibrateSpeed = (rawSpeed, pingMs, method) => {
-    if (method === 'network') return rawSpeed; // قياس حقيقي، لا تصحيح
-
-    // القياس المحلي يعكس سرعة ذاكرة الجهاز
-    // نستخدم ping لتقدير عرض النطاق الترددي الحقيقي
-    // هذا نموذج تجريبي معقول
-
-    // سرعة ذاكرة الهاتف المتوسط: 3000-8000 Mbps
-    // نطاق الاتصال الحقيقي: 1-1000 Mbps
-    // نسبة التحويل: الاتصال عادةً 0.1% - 5% من سرعة RAM
-
-    const pingFactor = pingMs < 20 ? 0.04
-      : pingMs < 50 ? 0.025
-      : pingMs < 100 ? 0.015
-      : pingMs < 200 ? 0.008
-      : 0.004;
-
-    const estimated = rawSpeed * pingFactor;
-
-    // حدود معقولة
-    return Math.min(Math.max(estimated, 1), 2000);
+    if (!results.length) return { speed: null, samples: [], estimated: true };
+    return { speed: trimmedMean(results), samples: results, estimated: false };
   };
 
   // ══════════════════════════════════════════
   // تقييم جودة الاتصال
   // ══════════════════════════════════════════
-  const rateConnection = (downloadMbps, pingMs) => {
-    if (downloadMbps >= 100 && pingMs <= 20) return { rating: 'excellent', label: 'Excellent — Fiber / 5G' };
-    if (downloadMbps >= 50  && pingMs <= 40) return { rating: 'excellent', label: 'Excellent Connection' };
-    if (downloadMbps >= 25  && pingMs <= 60) return { rating: 'good',      label: 'Good Connection' };
-    if (downloadMbps >= 10  && pingMs <= 100) return { rating: 'good',     label: 'Good Connection' };
-    if (downloadMbps >= 5   && pingMs <= 150) return { rating: 'average',  label: 'Average Connection' };
-    if (downloadMbps >= 1)                    return { rating: 'average',  label: 'Average — Basic Use' };
+  const rateConnection = (dl, ping) => {
+    if (dl >= 100 && ping <= 20)  return { rating: 'excellent', label: 'Excellent — Fiber / 5G' };
+    if (dl >= 50  && ping <= 40)  return { rating: 'excellent', label: 'Excellent Connection' };
+    if (dl >= 25  && ping <= 60)  return { rating: 'good',      label: 'Good Connection' };
+    if (dl >= 10  && ping <= 100) return { rating: 'good',      label: 'Good Connection' };
+    if (dl >= 5   && ping <= 200) return { rating: 'average',   label: 'Average Connection' };
+    if (dl >= 1)                  return { rating: 'average',   label: 'Below Average' };
     return { rating: 'poor', label: 'Poor Connection' };
   };
 
@@ -339,10 +267,10 @@ const SpeedTest = (() => {
   // ══════════════════════════════════════════
   const run = async (callbacks = {}) => {
     const { onStage, onPingSample, onDownloadProgress, onUploadProgress, onComplete, onError } = callbacks;
-    const emit = (stage, pct) => onStage && onStage(stage, pct);
+    const emit = (s, p) => onStage && onStage(s, p);
 
     try {
-      // ── Stage 1: Ping
+      // Stage 1: Ping
       emit('Measuring ping…', 5);
       const pingResult = await measurePing((rtt, samples) => {
         emit(`Ping: ${Math.round(rtt)} ms`, 5 + (samples.length / 12) * 20);
@@ -350,33 +278,28 @@ const SpeedTest = (() => {
       });
       emit('Ping complete', 25);
 
-      // ── Stage 2: Download
+      // Stage 2: Download
       emit('Testing download…', 30);
-      const dlResult = await measureDownload((speed, run, total) => {
-        emit(`Download: ${speed.toFixed(1)} Mbps`, 30 + (run / total) * 35);
-        if (onDownloadProgress) onDownloadProgress(speed, run, total);
+      const dlResult = await measureDownload((speed, r, total) => {
+        emit(`Download: ${speed.toFixed(1)} Mbps`, 30 + (r / (total || 4)) * 35);
+        if (onDownloadProgress) onDownloadProgress(speed, r, total);
       });
       emit('Download complete', 65);
 
-      // ── Stage 3: Upload
+      // Stage 3: Upload
       emit('Testing upload…', 70);
-      const ulResult = await measureUpload((speed, run, total) => {
-        emit(`Upload: ${speed.toFixed(1)} Mbps`, 70 + (run / total) * 25);
-        if (onUploadProgress) onUploadProgress(speed, run, total);
+      const ulResult = await measureUpload((speed, r, total) => {
+        emit(`Upload: ${speed.toFixed(1)} Mbps`, 70 + (r / (total || 3)) * 25);
+        if (onUploadProgress) onUploadProgress(speed, r, total);
       });
       emit('Finalizing…', 95);
+      await sleep(300);
 
-      await sleep(400);
-
-      // ── تجميع النتائج مع التصحيح
-      const rawDownload = dlResult.speed;
-      const download = calibrateSpeed(rawDownload, pingResult.ping, dlResult.method);
-      const upload = ulResult.speed
-        ? calibrateSpeed(ulResult.speed, pingResult.ping, 'network')
-        : download * (0.15 + Math.random() * 0.25); // تقدير upload/download ratio
-      const ping   = pingResult.ping;
-      const jitter = pingResult.jitter;
-      const quality = rateConnection(download, ping);
+      const download = dlResult.speed;
+      const upload   = ulResult.speed ?? (download * 0.2);
+      const ping     = pingResult.ping;
+      const jitter   = pingResult.jitter;
+      const quality  = rateConnection(download, ping);
 
       const results = {
         download: +download.toFixed(2),
@@ -384,13 +307,12 @@ const SpeedTest = (() => {
         ping:     +ping.toFixed(1),
         jitter:   +jitter.toFixed(1),
         quality,
-        uploadEstimated: !ulResult.speed,
-        method: dlResult.method,
+        uploadEstimated: ulResult.estimated ?? false,
         timestamp: new Date().toISOString(),
         samples: {
-          ping: pingResult.samples,
+          ping:     pingResult.samples,
           download: dlResult.samples,
-          upload: ulResult.samples,
+          upload:   ulResult.samples,
         },
       };
 
@@ -399,7 +321,7 @@ const SpeedTest = (() => {
       return results;
 
     } catch (err) {
-      console.error('[SpeedTest] Error:', err);
+      console.error('[SpeedTest]', err);
       if (onError) onError(err);
       throw err;
     }
