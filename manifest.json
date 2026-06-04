@@ -1,41 +1,35 @@
 {
-  "name": "SpeedCheck Pro",
-  "short_name": "SpeedCheck",
-  "description": "Free internet speed test — measure download, upload, ping and jitter instantly.",
-  "start_url": "./",
-  "scope": "./",
+  "name": "Kair Speed Test",
+  "short_name": "Kair Speed",
+  "description": "Fast, transparent browser-based internet speed testing. Measure download, upload, ping, and jitter.",
+  "start_url": "/",
   "display": "standalone",
-  "orientation": "portrait-primary",
-  "background_color": "#0a0f1e",
+  "background_color": "#060b18",
   "theme_color": "#0a0f1e",
-  "categories": ["utilities", "productivity"],
-  "lang": "en",
+  "orientation": "any",
   "icons": [
     {
-      "src": "icons/icon-192.svg",
+      "src": "icons/icon-192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
-      "purpose": "any"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
-      "src": "icons/icon-512.svg",
+      "src": "icons/icon-512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
-      "purpose": "maskable"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ],
-  "shortcuts": [
+  "categories": ["utilities", "productivity"],
+  "screenshots": [
     {
-      "name": "Run Speed Test",
-      "short_name": "Test",
-      "description": "Start an internet speed test immediately",
-      "url": "./#speedtest"
-    },
-    {
-      "name": "View History",
-      "short_name": "History",
-      "description": "View previous speed test results",
-      "url": "./#history"
+      "src": "og-image.png",
+      "sizes": "1200x630",
+      "type": "image/png",
+      "label": "Kair Speed Test main screen"
     }
-  ]
+  ],
+  "lang": "en",
+  "dir": "ltr"
 }
